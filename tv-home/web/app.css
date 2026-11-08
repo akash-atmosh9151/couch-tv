@@ -935,3 +935,11 @@ body {
   .theme-night .grid { width: 107.5rem; padding-bottom: 0; }
   .theme-night .grid > .app { margin: 0 1.625rem 3rem 0; }
 }
+
+
+/* Old WebViews without CSS grid: Home settings as two columns with flex */
+@supports not (display: grid) {
+  .settings.on { display: flex; }
+  .set-side { flex: none; width: 36rem; margin-right: 4rem; }
+  .set-main { flex: 1; }
+}
