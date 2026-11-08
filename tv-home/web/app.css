@@ -926,3 +926,12 @@ body {
 .theme-night .np-t small { font-size: 1.25rem; line-height: 1.625rem; }
 .theme-night.gearing .np-slot, .theme-night.apping .np-slot { opacity: 0; }
 .no-flex-gap.theme-night .shelf-row > * + * { margin-left: 1.375rem; }
+
+
+/* Old WebViews without CSS grid (before Chrome 57, e.g. Android 6): lay the app tiles out as wrapping rows */
+@supports not (display: grid) {
+  .grid { display: flex; flex-wrap: wrap; width: 112rem; }
+  .grid > .app { flex: none; margin: 0 var(--gap) var(--app-row-gap) 0; }
+  .theme-night .grid { width: 107.5rem; padding-bottom: 0; }
+  .theme-night .grid > .app { margin: 0 1.625rem 3rem 0; }
+}
