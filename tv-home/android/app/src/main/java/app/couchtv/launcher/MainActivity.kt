@@ -87,12 +87,17 @@ class MainActivity : Activity() {
         Doorbell.start(this)   // smart home (optional): nothing happens unless a doorbell is set up
         FireWatch.ensure(this)   // Fire TV only, and only once a computer has switched it on
         // At power-on the page is often asked for before Wi-Fi is up: try again the moment it is.
-        getSystemService(android.net.ConnectivityManager::class.java)?.registerDefaultNetworkCallback(
-            object : android.net.ConnectivityManager.NetworkCallback() {
-                override fun onAvailable(network: android.net.Network) {
-                    main.post { if (loadFailed || offline) connect() }
-                }
-            })
+        val netBack = object : android.net.ConnectivityManager.NetworkCallback() {
+            override fun onAvailable(network: android.net.Network) {
+                main.post { if (loadFailed || offline) connect() }
+            }
+        }
+        val cm = getSystemService(android.net.ConnectivityManager::class.java)
+        // registerDefaultNetworkCallback starts at Android 7. On Android 6 watch for any network with internet instead.
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) cm?.registerDefaultNetworkCallback(netBack)
+        else cm?.registerNetworkCallback(
+            android.net.NetworkRequest.Builder()
+                .addCapability(android.net.NetworkCapabilities.NET_CAPABILITY_INTERNET).build(), netBack)
         // Load the last bridge that worked straight away; only probe the others if it fails.
         val saved = prefs.getString("bridge", null)
         if (saved != null) showWeb(saved) else connect()
@@ -689,13 +694,16 @@ class MainActivity : Activity() {
             while (bounds.outWidth / (sample * 2) >= 1920 && bounds.outHeight / (sample * 2) >= 1080) sample *= 2
             val opts = android.graphics.BitmapFactory.Options().apply { inSampleSize = sample }
             val raw = contentResolver.openInputStream(uri)?.use { android.graphics.BitmapFactory.decodeStream(it, null, opts) } ?: return null
-            val turn = try {
-                contentResolver.openInputStream(uri)?.use {
-                    when (android.media.ExifInterface(it).getAttributeInt(android.media.ExifInterface.TAG_ORIENTATION, 1)) {
-                        6 -> 90f; 3 -> 180f; 8 -> 270f; else -> 0f
-                    }
-                } ?: 0f
-            } catch (e: Exception) { 0f }
+            // Reading a photo's rotation from a stream needs Android 7; on Android 6 the photo is used as it is.
+            val turn = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+                try {
+                    contentResolver.openInputStream(uri)?.use {
+                        when (android.media.ExifInterface(it).getAttributeInt(android.media.ExifInterface.TAG_ORIENTATION, 1)) {
+                            6 -> 90f; 3 -> 180f; 8 -> 270f; else -> 0f
+                        }
+                    } ?: 0f
+                } catch (e: Exception) { 0f }
+            } else 0f
             val w = if (turn == 90f || turn == 270f) raw.height else raw.width
             val h = if (turn == 90f || turn == 270f) raw.width else raw.height
             val scale = minOf(1f, maxOf(1920f / w, 1080f / h))
@@ -816,10 +824,6 @@ class MainActivity : Activity() {
                             art.toByteArray(), android.util.Base64.URL_SAFE or android.util.Base64.NO_WRAP or android.util.Base64.NO_PADDING))
                         if (dur > 0 && pos > 0) put("progress", (pos.toDouble() / dur).coerceIn(0.0, 1.0))
                         put("app", JSONObject().put("package", pkg).put("name", label))
-                        // for the bridge (POST /api/watch-next): which app, and when it was last watched,
-                        // to name a play the app itself gave no title for (Netflix, issue #23)
-                        put("package", pkg)
-                        put("engaged", c.getLong(10))
                     })
                 }
             }
